@@ -60,3 +60,4 @@ describe('Health Check API & Backend Foundation', () => {
     expect(sanitized.meta.token).toBe('[REDACTED]');
   });
 });
+

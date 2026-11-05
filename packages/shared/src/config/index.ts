@@ -91,3 +91,4 @@ export function getSafePublicConfig(config: AppConfig = getAppConfig()): SafePub
     hasAnnouncerConfigured: Boolean(config.ERC5564_ANNOUNCER_ADDRESS),
   };
 }
+

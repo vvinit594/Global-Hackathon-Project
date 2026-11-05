@@ -31,3 +31,4 @@ export interface HealthCheckResponse {
   version: string;
   chain: HealthCheckChainInfo;
 }
+

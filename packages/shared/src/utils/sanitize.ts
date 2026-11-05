@@ -46,3 +46,4 @@ export function sanitizeData<T>(data: T, depth = 0): T {
 
   return data;
 }
+

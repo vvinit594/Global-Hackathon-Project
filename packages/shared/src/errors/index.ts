@@ -135,3 +135,4 @@ export function normalizeError(error: unknown, requestId?: string): NormalizedEr
     ),
   };
 }
+
