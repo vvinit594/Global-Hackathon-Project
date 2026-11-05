@@ -25,3 +25,4 @@
 | `notifications` | INSERT | Service Role (`CHECK (true)`) | Background Worker |
 | `user_settings` | SELECT / INSERT / UPDATE | `auth.uid() = user_id` | Owning User |
 | `scanner_checkpoints` | ALL | `USING (false)` (Service Role only) | Scanner Service |
+

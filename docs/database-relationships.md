@@ -31,3 +31,4 @@ erDiagram
   - A receiver cannot delete an active stealth identity if payments have been received or are pending against it.
 - `notifications.user_id` -> `auth.users(id) ON DELETE CASCADE`
   - Deleting an account removes pending notifications.
+
