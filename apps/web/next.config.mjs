@@ -1,6 +1,10 @@
 import { createRequire } from 'module';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,6 +13,10 @@ const nextConfig = {
   },
   transpilePackages: ['@stealth/shared', '@stealth/crypto', '@stealth/db'],
   webpack: (config, { isServer }) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'react-router-dom': path.resolve(__dirname, 'src/utils/router-shim.tsx'),
+    };
     if (isServer) {
       const prev = Array.isArray(config.externals) ? config.externals : [config.externals].filter(Boolean);
       config.externals = [

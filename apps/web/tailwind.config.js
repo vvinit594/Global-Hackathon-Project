@@ -12,6 +12,26 @@ module.exports = {
         sans: ['var(--font-general-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
+        canvas: '#fafaf8',
+        line: '#e8e8e5',
+        'warn-soft': '#f6eddc',
+        sage: {
+          DEFAULT: '#b8c8b2',
+          deep: '#8fa688',
+          soft: '#eef2ec',
+        },
+        beige: {
+          DEFAULT: '#e8dccb',
+          soft: '#f6f1e8',
+        },
+        ink: {
+          DEFAULT: '#343434',
+          soft: '#6b6b66',
+        },
+        danger: {
+          DEFAULT: '#b4574f',
+          soft: '#f6e6e3',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
