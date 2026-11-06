@@ -54,14 +54,13 @@ export function useNavigate() {
 
 export function useLocation() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   return useMemo(() => ({
     pathname: pathname || '/',
-    search: searchParams ? `?${searchParams.toString()}` : '',
+    search: typeof window !== 'undefined' ? window.location.search : '',
     hash: typeof window !== 'undefined' ? window.location.hash : '',
     state: null,
     key: 'default',
-  }), [pathname, searchParams])
+  }), [pathname])
 }
 
 export function Outlet({ children }: { children?: React.ReactNode }) {

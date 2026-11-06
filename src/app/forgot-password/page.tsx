@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,21 +24,28 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthLayout
-      title="Reset your password"
-      subtitle="We'll send reset instructions to your email."
+      title="Recover Access"
+      subtitle="Enter your email to receive recovery instructions"
       footer={
-        <Link to="/login" className="font-medium text-ink underline">
-          Back to log in
+        <Link href="/login" className="font-mono font-semibold text-primary hover:text-primary-hover hover:underline">
+          Return to Sign In
         </Link>
       }
     >
       {sent ? (
-        <div className="rounded-3xl bg-sage-soft p-6 text-center">
-          <MailCheck className="mx-auto mb-3 size-8 text-sage-deep" />
-          <p className="font-medium text-ink">Check your inbox</p>
-          <p className="mt-1 text-sm text-ink-soft">
-            Demo: no email was actually sent to {sent}.
+        <div className="rounded-card border border-accent/30 bg-accent-soft p-6 text-center">
+          <MailCheck className="mx-auto mb-3 size-8 text-accent" />
+          <p className="font-display font-medium text-foreground text-sm">Check your inbox</p>
+          <p className="mt-1 font-mono text-xs text-muted">
+            Cryptographic reset challenge generated for {sent}.
           </p>
+          <Button
+            variant="secondary"
+            className="mt-4 text-xs h-9 w-full font-mono"
+            onClick={() => setSent('')}
+          >
+            Try another email
+          </Button>
         </div>
       ) : (
         <form
@@ -49,15 +56,16 @@ export default function ForgotPasswordPage() {
           className="space-y-4"
           noValidate
         >
-          <Field label="Email" error={errors.email?.message}>
+          <Field label="Email Address" error={errors.email?.message}>
             <Input
               type="email"
-              placeholder="you@example.com"
+              placeholder="operator@stealthpay.io"
+              autoComplete="email"
               {...register('email')}
             />
           </Field>
-          <Button type="submit" className="w-full" loading={isSubmitting}>
-            Send reset link
+          <Button type="submit" className="w-full mt-2 h-10 font-medium text-xs" loading={isSubmitting}>
+            Send Recovery Link
           </Button>
         </form>
       )}

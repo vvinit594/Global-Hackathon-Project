@@ -28,37 +28,54 @@ export function Button({
   ...p
 }: BtnProps) {
   const v = {
-    primary: 'bg-sage text-ink hover:bg-sage-deep hover:text-white',
-    secondary: 'bg-beige text-ink hover:bg-[#dccfba]',
-    ghost: 'bg-transparent text-ink border border-line hover:bg-sage-soft',
-    danger: 'bg-danger-soft text-danger hover:bg-[#efd5d1]',
+    primary:
+      'bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium border border-transparent shadow-[0_1px_2px_rgba(0,0,0,0.12)] active:translate-y-px transition-all',
+    secondary:
+      'bg-[var(--surface-secondary)] hover:bg-[var(--border)] text-[var(--foreground)] font-medium border border-[var(--border)] active:translate-y-px transition-all',
+    ghost:
+      'bg-transparent text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--surface-secondary)] active:translate-y-px transition-all',
+    danger:
+      'bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)] border border-[var(--badge-danger-border)] hover:opacity-90 active:translate-y-px transition-all',
   }[variant]
+
   const s = {
-    sm: 'h-9 px-3.5 text-sm',
-    md: 'h-11 px-5 text-sm',
-    lg: 'h-12 px-7 text-base',
+    sm: 'h-8 px-3 text-xs rounded-control',
+    md: 'h-10 px-4 text-sm rounded-input',
+    lg: 'h-11 px-6 text-sm font-medium rounded-input',
   }[size]
 
   return (
     <button
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer',
+        'inline-flex items-center justify-center gap-2 font-sans font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none',
         v,
         s,
         className
       )}
       {...p}
     >
-      {loading && <Loader2 className="size-4 animate-spin" />}
+      {loading && <Loader2 className="size-3.5 animate-spin" />}
       {children}
     </button>
   )
 }
 
-export function Card({ className, children, ...p }: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  children,
+  hover = false,
+  ...p
+}: React.HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
   return (
-    <div className={cn('rounded-3xl border border-line bg-card shadow-soft', className)} {...p}>
+    <div
+      className={cn(
+        'rounded-card border border-[var(--border)] bg-[var(--surface)] shadow-[var(--color-card-shadow)] text-[var(--foreground)] transition-all duration-150',
+        hover && 'hover:border-[var(--border-strong)] hover:shadow-md cursor-pointer',
+        className
+      )}
+      {...p}
+    >
       {children}
     </div>
   )
@@ -67,18 +84,29 @@ export function Card({ className, children, ...p }: React.HTMLAttributes<HTMLDiv
 export function Badge({
   tone = 'neutral',
   children,
+  className,
 }: {
-  tone?: 'success' | 'warn' | 'danger' | 'neutral'
+  tone?: 'success' | 'warn' | 'danger' | 'neutral' | 'purple' | 'cyan'
   children: ReactNode
+  className?: string
 }) {
   const t = {
-    success: 'bg-sage-soft text-[#4f6a48]',
-    warn: 'bg-warn-soft text-[#8a6a2c]',
-    danger: 'bg-danger-soft text-danger',
-    neutral: 'bg-beige-soft text-ink-soft',
+    success: 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)] border border-[var(--badge-success-border)]',
+    warn: 'bg-[var(--badge-warn-bg)] text-[var(--badge-warn-text)] border border-[var(--badge-warn-border)]',
+    danger: 'bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)] border border-[var(--badge-danger-border)]',
+    neutral: 'bg-[var(--badge-neutral-bg)] text-[var(--badge-neutral-text)] border border-[var(--badge-neutral-border)]',
+    purple: 'bg-[var(--primary-soft)] text-[var(--primary)] border border-[var(--primary)]/30',
+    cyan: 'bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/35',
   }[tone]
+
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium', t)}>
+    <span
+      className={cn(
+        'inline-flex items-center rounded-control px-2 py-0.5 text-[11px] font-mono font-medium tracking-tight transition-colors',
+        t,
+        className
+      )}
+    >
       {children}
     </span>
   )
@@ -97,11 +125,15 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium">{label}</span>
+      <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--foreground-secondary)]">
+        {label}
+      </span>
       {children}
-      {hint && !error && <span className="mt-1.5 block text-xs text-ink-soft">{hint}</span>}
+      {hint && !error && (
+        <span className="mt-1.5 block text-xs text-[var(--muted)]">{hint}</span>
+      )}
       {error && (
-        <span role="alert" className="mt-1.5 block text-xs text-danger">
+        <span role="alert" className="mt-1.5 block text-xs text-[var(--color-state-error)] font-medium">
           {error}
         </span>
       )}
@@ -110,7 +142,7 @@ export function Field({
 }
 
 const inputCls =
-  'h-11 w-full rounded-2xl border border-line bg-card px-4 text-sm outline-none transition placeholder:text-ink-soft/60 focus:border-sage-deep focus:ring-4 focus:ring-sage/30'
+  'h-10 w-full rounded-input border border-[var(--border)] bg-[var(--color-input-bg)] px-3.5 text-sm text-[var(--foreground)] outline-none transition-all placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]/30 font-sans'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...p }, ref) => <input ref={ref} className={cn(inputCls, className)} {...p} />
@@ -119,7 +151,7 @@ Input.displayName = 'Input'
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   ({ className, ...p }, ref) => (
-    <textarea ref={ref} className={cn(inputCls, 'h-auto py-3 resize-none', className)} {...p} />
+    <textarea ref={ref} className={cn(inputCls, 'h-auto py-2.5 resize-none', className)} {...p} />
   )
 )
 Textarea.displayName = 'Textarea'
@@ -130,7 +162,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       ref={ref}
       className={cn(
         inputCls,
-        'cursor-pointer appearance-none bg-[url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%236b6b66%27 stroke-width=%272%27><path d=%27m6 9 6 6 6-6%27/></svg>")] bg-[length:16px] bg-[right_1rem_center] bg-no-repeat pr-10',
+        'cursor-pointer appearance-none bg-[url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23647078%27 stroke-width=%272%27><path d=%27m6 9 6 6 6-6%27/></svg>")] bg-[length:14px] bg-[right_0.85rem_center] bg-no-repeat pr-9 text-[var(--foreground)]',
         className
       )}
       {...p}
@@ -158,14 +190,14 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={cn(
-        'relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors',
-        checked ? 'bg-sage-deep' : 'bg-line'
+        'relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-150 border border-transparent',
+        checked ? 'bg-[var(--primary)]' : 'bg-[var(--border-strong)]'
       )}
     >
       <span
         className={cn(
-          'absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform',
-          checked && 'translate-x-5'
+          'absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform duration-150',
+          checked && 'translate-x-4'
         )}
       />
     </button>
@@ -185,16 +217,25 @@ export function Modal({
 }) {
   useEffect(() => {
     if (!open) return
+    const prev = typeof document !== 'undefined' ? document.body.style.overflow : ''
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden'
+    }
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = prev
+      }
+      window.removeEventListener('keydown', h)
+    }
   }, [open, onClose])
 
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-[2px] sm:items-center"
       onClick={onClose}
     >
       <div
@@ -202,14 +243,14 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl border border-line bg-card p-6 shadow-pop"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-panel border border-[var(--border-strong)] bg-[var(--surface)] p-6 shadow-[var(--color-modal-shadow)] text-[var(--foreground)] transition-colors animate-in fade-in-0 zoom-in-95 duration-150"
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
+        <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-3">
+          <h2 className="font-display text-base font-bold text-[var(--foreground)] tracking-tight">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid size-9 cursor-pointer place-items-center rounded-full hover:bg-sage-soft"
+            className="grid size-7 cursor-pointer place-items-center rounded-control text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] transition-colors"
           >
             <X className="size-4" />
           </button>

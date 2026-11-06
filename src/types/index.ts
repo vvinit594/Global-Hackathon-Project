@@ -57,6 +57,8 @@ export interface StealthIdentity {
   metaAddress: string;
   spendingKey: string;
   viewingKey: string;
+  spendingPrivateKey?: string;
+  viewingPrivateKey?: string;
   createdAt: string;
 }
 
@@ -68,10 +70,12 @@ export interface WalletState {
   balances: Record<string, number>;
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export interface Settings {
   name: string;
   email: string;
-  theme: 'light' | 'dark';
+  theme: ThemeMode;
   currency: string;
   twoFactor: boolean;
   notifyIncoming: boolean;

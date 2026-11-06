@@ -1,15 +1,14 @@
 "use client"
 
 import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CheckCircle2, Loader2, XCircle, ShieldCheck, Sparkles, KeyRound } from 'lucide-react'
-import { Button, Card, Field, Input, Modal, Select, Textarea } from '@/components/ui'
-import { DemoNotice, PageHeader, CopyButton } from '@/components/common'
+import { CheckCircle2, Loader2, Sparkles, ArrowRight, Shield } from 'lucide-react'
+import { Button, Card, Field, Input, Modal, Select } from '@/components/ui'
+import { DemoNotice, PageHeader } from '@/components/common'
 import { AppShell } from '@/components/layout/app-shell'
-import { assets, gasByNetwork, networks, usdRates } from '@/data/mock-wallet'
+import { gasByNetwork, usdRates } from '@/data/mock-wallet'
 import { paymentService } from '@/services'
 import { useAppStore } from '@/store/app-store'
 import { fmtUsd, shorten } from '@/utils/format'
@@ -18,7 +17,7 @@ import { deriveOneTimeStealthAddress, isValidStealthMetaAddress } from '@/utils/
 const schema = z.object({
   to: z
     .string()
-    .min(12, 'Enter a valid stealth meta-address')
+    .min(10, 'Enter a valid stealth meta-address')
     .startsWith('st:', 'Meta-address should start with "st:"'),
   network: z.string(),
   asset: z.string(),
@@ -38,19 +37,19 @@ export default function SendPage() {
   const [data, setData] = useState<Out | null>(null)
   const [txId, setTxId] = useState('')
   const [derivedOneTimeAddress, setDerivedOneTimeAddress] = useState('')
-  const [ephemeralKey, setEphemeralKey] = useState('')
 
   const {
     register,
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<In, unknown, Out>({
     resolver: zodResolver(schema),
     defaultValues: {
       to: '',
-      network: 'Ethereum',
+      network: 'Ethereum (Sepolia)',
       asset: 'ETH',
       amount: undefined,
       message: '',
@@ -59,15 +58,15 @@ export default function SendPage() {
 
   const w = watch()
   const amt = Number(w.amount) || 0
-  const gas = gasByNetwork[w.network] ?? 0
-  const bal = wallet.balances[w.asset] ?? 0
+  const gas = gasByNetwork[w.network] ?? 0.00042
+  const bal = wallet.balances[w.asset] ?? 2.48
 
   // Real-time derivation of unique one-time stealth address from receiver's meta-address
   const stealthDerivation = useMemo(() => {
     if (w.to && isValidStealthMetaAddress(w.to)) {
       try {
         return deriveOneTimeStealthAddress(w.to)
-      } catch (e) {
+      } catch {
         return null
       }
     }
@@ -76,12 +75,11 @@ export default function SendPage() {
 
   const submit = (v: Out) => {
     if (v.amount > bal) {
-      toast(`Insufficient ${v.asset} balance (demo)`, 'error')
+      toast(`Insufficient ${v.asset} balance in demo wallet`, 'error')
       return
     }
     const derived = deriveOneTimeStealthAddress(v.to)
     setDerivedOneTimeAddress(derived.oneTimeAddress)
-    setEphemeralKey(derived.ephemeralPublicKey)
     setData(v)
     setPhase('confirm')
   }
@@ -90,7 +88,6 @@ export default function SendPage() {
     if (!data) return
     setPhase('processing')
 
-    // Simulate service call
     const r = await paymentService.submitPayment({
       to: data.to,
       amount: data.amount,
@@ -98,244 +95,284 @@ export default function SendPage() {
       network: data.network,
     })
 
-    if (data.message?.toLowerCase().includes('fail')) {
+    if (r.ok) {
+      createOneTimeStealthPayment({
+        receiverMetaAddress: data.to,
+        amount: data.amount,
+        asset: data.asset,
+        network: data.network,
+        memo: data.message,
+      })
+
+      setTxId(r.id)
+      setPhase('success')
+      toast('One-time stealth payment transmitted!')
+    } else {
       setPhase('failed')
-      return
     }
-
-    setTxId(r.id)
-
-    // Create full one-time stealth address record and transaction
-    createOneTimeStealthPayment({
-      receiverMetaAddress: data.to,
-      amount: data.amount,
-      asset: data.asset,
-      network: data.network,
-      memo: data.message || undefined,
-    })
-
-    setPhase('success')
-  }
-
-  const again = () => {
-    reset()
-    setPhase('form')
-    setData(null)
-  }
-
-  if (phase === 'processing' || phase === 'success' || phase === 'failed') {
-    return (
-      <AppShell>
-        <div>
-          <PageHeader title="Transaction status" />
-          <Card className="mx-auto max-w-lg p-10 text-center">
-            {phase === 'processing' && (
-              <>
-                <Loader2 className="mx-auto size-12 animate-spin text-sage-deep" />
-                <h2 className="mt-5 text-xl font-semibold text-ink">
-                  Deriving stealth destination & submitting
-                </h2>
-                <p className="mt-2 text-sm text-ink-soft">
-                  Generating ephemeral keypair and one-time stealth destination address.
-                </p>
-              </>
-            )}
-            {phase === 'success' && (
-              <>
-                <CheckCircle2 className="mx-auto size-12 text-sage-deep" />
-                <h2 className="mt-5 text-xl font-semibold text-ink">
-                  Payment submitted (One-Time Address)
-                </h2>
-                <p className="mt-2 text-sm text-ink-soft">
-                  {data?.amount} {data?.asset} on {data?.network}
-                </p>
-                <div className="mt-4 rounded-2xl bg-canvas p-4 text-left">
-                  <p className="text-xs text-ink-soft">Generated One-Time Address (Unlinkable):</p>
-                  <p className="mt-1 font-mono text-xs font-semibold break-all text-ink">
-                    {derivedOneTimeAddress}
-                  </p>
-                  <p className="mt-2 text-xs text-ink-soft">Transaction ID:</p>
-                  <p className="mt-0.5 font-mono text-xs break-all text-ink">{txId}</p>
-                </div>
-                <div className="mt-6 flex justify-center gap-3">
-                  <Link to="/transactions">
-                    <Button>View history</Button>
-                  </Link>
-                  <Button variant="ghost" onClick={again}>
-                    Send another
-                  </Button>
-                </div>
-              </>
-            )}
-            {phase === 'failed' && (
-              <>
-                <XCircle className="mx-auto size-12 text-danger" />
-                <h2 className="mt-5 text-xl font-semibold text-ink">Payment failed (demo)</h2>
-                <p className="mt-2 text-sm text-ink-soft">
-                  Simulated error because the message contained "fail".
-                </p>
-                <div className="mt-6 flex justify-center gap-3">
-                  <Button onClick={() => setPhase('form')}>Try again</Button>
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
-      </AppShell>
-    )
   }
 
   return (
     <AppShell>
-      <div>
+      <div className="space-y-5">
         <PageHeader
-          title="Send payment"
-          description="Pay a receiver's permanent stealth meta-address. A fresh one-time stealth destination address will be derived automatically."
+          title="Send Payment"
+          description="Transmit crypto to an unlinkable, single-use EIP-5564 stealth destination"
         />
-        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-          <Card className="p-6">
+
+        <DemoNotice />
+
+        {/* 2-COLUMN LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-5 items-start">
+          {/* LEFT: SEND FORM CARD */}
+          <Card className="p-5 sm:p-6">
             <form onSubmit={handleSubmit(submit)} className="space-y-4" noValidate>
+              {/* Receiver Meta-Address */}
               <Field
-                label="Receiver's permanent stealth meta-address"
+                label="Recipient's Stealth Meta-Address"
                 error={errors.to?.message}
-                hint="Permanent & reusable. Example: st:eth:0x028c9fe47b..."
+                hint="Permanent public meta-address starting with st: or st:eth:"
               >
-                <Input
-                  placeholder="st:eth:0x02…"
-                  className="font-mono text-xs"
-                  {...register('to')}
-                />
+                <div className="relative">
+                  <Input
+                    placeholder="st:0x... or paste stealth address"
+                    className="font-mono text-xs pr-20"
+                    {...register('to')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setValue(
+                        'to',
+                        'st:eth:0x028c9fe47b9938dcb90184bba01948bc891048bce910283749bcf819028374900a'
+                      )
+                    }
+                    className="absolute top-1/2 right-2 -translate-y-1/2 rounded-control bg-[var(--surface-secondary)] hover:bg-[var(--border)] px-2 py-0.5 text-[10px] font-mono font-semibold text-[var(--primary)] border border-[var(--border)] transition-colors cursor-pointer"
+                  >
+                    PASTE DEMO
+                  </button>
+                </div>
               </Field>
 
-              {/* Real-time One-time derivation badge */}
-              {stealthDerivation && (
-                <div className="rounded-2xl border border-sage bg-sage-soft p-3.5">
-                  <div className="flex items-center gap-2 text-xs font-medium text-ink">
-                    <ShieldCheck className="size-4 text-sage-deep" />
-                    <span>One-Time Stealth Address Derived</span>
+              {/* Amount and Asset Selector */}
+              <Field label="Transfer Amount" error={errors.amount?.message}>
+                <div className="grid grid-cols-[1fr_110px] gap-2">
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="0.00"
+                      className="font-mono text-xs"
+                      {...register('amount')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setValue('amount', bal > 0 ? bal : 1.0)}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-[11px] font-mono font-semibold text-[var(--primary)] hover:underline cursor-pointer"
+                    >
+                      MAX
+                    </button>
                   </div>
-                  <p className="mt-1.5 font-mono text-xs break-all text-ink">
+
+                  <Select {...register('asset')} className="font-mono text-xs">
+                    <option value="ETH">ETH</option>
+                    <option value="USDC">USDC</option>
+                    <option value="USDT">USDT</option>
+                    <option value="DAI">DAI</option>
+                  </Select>
+                </div>
+                <div className="mt-1 flex justify-between font-mono text-[11px] text-[var(--muted)]">
+                  <span>Balance: {bal} {w.asset}</span>
+                  <span>≈ {fmtUsd(amt * (usdRates[w.asset] ?? 2000))} USD</span>
+                </div>
+              </Field>
+
+              {/* Network Selector */}
+              <Field label="Execution Network">
+                <Select {...register('network')} className="font-mono text-xs">
+                  <option value="Ethereum (Sepolia)">Ethereum (Sepolia)</option>
+                  <option value="Ethereum Mainnet">Ethereum Mainnet</option>
+                  <option value="Polygon">Polygon</option>
+                  <option value="Arbitrum One">Arbitrum One</option>
+                  <option value="Optimism">Optimism</option>
+                </Select>
+              </Field>
+
+              {/* Real-time One-time Derivation Preview Badge */}
+              {stealthDerivation && (
+                <div className="rounded-control border border-[var(--primary)]/30 bg-[var(--primary-soft)]/20 p-3 space-y-1">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-[var(--primary)]">
+                    <Sparkles className="size-3" />
+                    <span>REAL-TIME ONE-TIME ADDRESS DERIVED</span>
+                  </div>
+                  <p className="font-mono text-xs text-[var(--foreground)] break-all font-semibold">
                     {stealthDerivation.oneTimeAddress}
                   </p>
-                  <p className="mt-1 text-[11px] text-ink-soft">
-                    Unique to this payment. Will never be reused.
+                  <p className="text-[10px] font-mono text-[var(--muted)]">
+                    Zero correlation to recipient&apos;s permanent meta-address on block explorers.
                   </p>
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Network">
-                  <Select {...register('network')}>
-                    {networks.map((n) => (
-                      <option key={n}>{n}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Cryptocurrency">
-                  <Select {...register('asset')}>
-                    {assets.map((n) => (
-                      <option key={n}>{n}</option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-
-              <Field
-                label="Amount"
-                error={errors.amount?.message}
-                hint={`Available: ${bal} ${w.asset}`}
-              >
-                <Input type="number" step="any" placeholder="0.00" {...register('amount')} />
-              </Field>
-
-              <Field
-                label="Message (optional)"
-                error={errors.message?.message}
-                hint="Included in the encrypted note payload"
-              >
-                <Textarea rows={3} placeholder="Add a note or reference" {...register('message')} />
-              </Field>
-
-              <Button type="submit" size="lg" className="w-full">
-                Review payment
+              {/* Action Button */}
+              <Button type="submit" className="w-full mt-2 h-10 font-mono text-xs">
+                Review Stealth Payment <ArrowRight className="size-3.5" />
               </Button>
             </form>
           </Card>
 
-          <div className="space-y-4">
-            <Card className="p-6">
-              <h2 className="mb-3 font-semibold text-ink">Payment preview</h2>
-              <dl className="space-y-2.5 text-sm">
-                {[
-                  ['Amount', `${amt || 0} ${w.asset}`],
-                  ['Value', fmtUsd(amt * (usdRates[w.asset] ?? 0))],
-                  ['Network', w.network],
-                  ['Est. gas fee', `~${gas} ETH`],
-                  [
-                    'One-Time Destination',
-                    stealthDerivation
-                      ? shorten(stealthDerivation.oneTimeAddress, 8, 6)
-                      : 'Derived at review',
-                  ],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between">
-                    <dt className="text-ink-soft">{k}</dt>
-                    <dd className="font-medium text-ink">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-            </Card>
-
-            <Card className="p-5 bg-beige-soft border-line">
-              <div className="flex items-center gap-2 text-xs font-semibold text-ink">
-                <KeyRound className="size-4 text-amber-800" />
-                <span>EIP-5564 Stealth Invariant</span>
-              </div>
-              <p className="mt-1 text-xs text-ink-soft leading-relaxed">
-                The permanent Stealth Meta-Address is <strong>never</strong> used as the destination address on-chain. Each payment generates a separate, single-use address.
-              </p>
-            </Card>
-
-            <DemoNotice />
-          </div>
-        </div>
-
-        {/* Confirmation Modal */}
-        <Modal open={phase === 'confirm'} onClose={() => setPhase('form')} title="Confirm payment">
-          {data && (
+          {/* RIGHT: HOW IT WORKS? PANEL */}
+          <Card className="p-5 sm:p-6">
+            <h2 className="font-display text-sm font-bold text-[var(--foreground)] mb-4 pb-2 border-b border-[var(--border)]">
+              Protocol Operation
+            </h2>
             <div className="space-y-4">
-              <dl className="divide-y divide-line text-sm">
-                {[
-                  ['Receiver Meta-Address', shorten(data.to, 12, 6)],
-                  ['One-Time Stealth Address', derivedOneTimeAddress],
-                  ['Amount', `${data.amount} ${data.asset}`],
-                  ['Network', data.network],
-                  ['Est. gas', `~${gas} ETH`],
-                  ['Message', data.message || '-'],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-4 py-2.5">
-                    <dt className="text-ink-soft">{k}</dt>
-                    <dd className="text-right font-medium break-all font-mono text-xs text-ink">
-                      {v}
-                    </dd>
+              {[
+                {
+                  step: '01',
+                  title: "Resolve Recipient Meta-Address",
+                  desc: 'Input recipient permanent meta-address (st:eth:...) containing public viewing and spending keys.',
+                },
+                {
+                  step: '02',
+                  title: 'Diffie-Hellman Derivation',
+                  desc: 'A random ephemeral scalar r generates single-use target P and announcement R on secp256k1.',
+                },
+                {
+                  step: '03',
+                  title: 'Publish On-Chain',
+                  desc: 'Funds are transferred to destination P while announcement R is broadcasted in transaction logs.',
+                },
+                {
+                  step: '04',
+                  title: 'Private Viewing Key Scan',
+                  desc: 'The recipient detects and sweeps funds privately without disclosing historical balances.',
+                },
+              ].map((s) => (
+                <div key={s.step} className="flex items-start gap-3">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-control bg-[var(--surface-secondary)] border border-[var(--border)] font-mono text-[10px] font-bold text-[var(--primary)]">
+                    {s.step}
+                  </span>
+                  <div>
+                    <h3 className="text-xs font-semibold text-[var(--foreground)]">{s.title}</h3>
+                    <p className="text-[11px] text-[var(--foreground-secondary)] mt-0.5 leading-relaxed">{s.desc}</p>
                   </div>
-                ))}
-              </dl>
-              <p className="text-xs text-ink-soft">
-                Confirming derives the one-time stealth destination address and simulates submission on the testnet.
-              </p>
-              <div className="flex gap-3">
-                <Button variant="ghost" className="flex-1" onClick={() => setPhase('form')}>
-                  Cancel
-                </Button>
-                <Button className="flex-1" onClick={confirm}>
-                  Confirm & Send
-                </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 rounded-control border border-[var(--border)] bg-[var(--surface-secondary)] p-3 text-[11px] font-mono text-[var(--muted)]">
+              STANDARD: EIP-5564 NON-INTERACTIVE STEALTH ADDRESSES
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* CONFIRMATION MODAL */}
+      <Modal
+        open={phase === 'confirm'}
+        onClose={() => setPhase('form')}
+        title="Confirm Stealth Payment"
+      >
+        {data && (
+          <div className="space-y-4">
+            <div className="rounded-control border border-[var(--border)] bg-[var(--surface-secondary)] p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between text-[var(--foreground-secondary)]">
+                <span>Sending Amount:</span>
+                <span className="font-mono font-bold text-[var(--foreground)] text-sm">
+                  {data.amount} {data.asset}
+                </span>
+              </div>
+              <div className="flex justify-between text-[var(--foreground-secondary)]">
+                <span>Estimated Gas:</span>
+                <span className="text-[var(--foreground)] font-mono">{gas} ETH</span>
+              </div>
+              <div className="flex justify-between text-[var(--foreground-secondary)]">
+                <span>Network:</span>
+                <span className="text-[var(--foreground)] font-mono">{data.network}</span>
               </div>
             </div>
-          )}
-        </Modal>
-      </div>
+
+            <div className="rounded-control border border-[var(--primary)]/30 bg-[var(--primary-soft)]/20 p-3 space-y-1">
+              <span className="font-mono text-[10px] font-semibold text-[var(--primary)] uppercase tracking-wider block">
+                Derived One-Time Stealth Destination
+              </span>
+              <p className="font-mono text-xs text-[var(--foreground)] break-all font-semibold">
+                {derivedOneTimeAddress}
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-[var(--border)]">
+              <Button
+                variant="secondary"
+                className="flex-1 text-xs"
+                onClick={() => setPhase('form')}
+              >
+                Back
+              </Button>
+              <Button className="flex-1 text-xs font-mono" onClick={confirm}>
+                Confirm & Transmit
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* PROCESSING MODAL */}
+      <Modal open={phase === 'processing'} onClose={() => {}} title="Broadcasting Payment">
+        <div className="py-6 text-center space-y-3">
+          <Loader2 className="size-8 animate-spin mx-auto text-[var(--primary)]" />
+          <div>
+            <h3 className="font-display text-sm font-semibold text-[var(--foreground)]">Broadcasting Ephemeral Announcement</h3>
+            <p className="font-mono text-[11px] text-[var(--muted)] mt-1">
+              Committing transaction to mempool...
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SUCCESS MODAL */}
+      <Modal
+        open={phase === 'success'}
+        onClose={() => {
+          setPhase('form')
+          reset()
+        }}
+        title="Payment Broadcasted"
+      >
+        <div className="space-y-4">
+          <div className="py-3 text-center">
+            <div className="grid size-10 place-items-center rounded-control bg-[var(--badge-success-bg)] border border-[var(--badge-success-border)] text-[var(--badge-success-text)] mx-auto mb-2.5">
+              <CheckCircle2 className="size-5" />
+            </div>
+            <h3 className="font-display text-base font-bold text-[var(--foreground)]">Stealth Payment Sent</h3>
+            <p className="text-xs text-[var(--foreground-secondary)] mt-0.5">
+              Funds deposited into one-time blinded destination address.
+            </p>
+          </div>
+
+          <div className="rounded-control border border-[var(--border)] bg-[var(--surface-secondary)] p-3 space-y-1.5 text-xs font-mono">
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--muted)]">Tx Hash:</span>
+              <span className="text-[var(--foreground)]">{shorten(txId, 6, 4)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--muted)]">Stealth Address:</span>
+              <span className="text-[var(--accent)] font-semibold">{shorten(derivedOneTimeAddress, 6, 4)}</span>
+            </div>
+          </div>
+
+          <Button
+            className="w-full h-9 font-mono text-xs"
+            onClick={() => {
+              setPhase('form')
+              reset()
+            }}
+          >
+            Acknowledge & Close
+          </Button>
+        </div>
+      </Modal>
     </AppShell>
   )
 }

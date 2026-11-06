@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,7 +22,7 @@ type Values = z.infer<typeof schema>
 export default function LoginPage() {
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
-  const navigate = useNavigate()
+  const router = useRouter()
   const { login, connectWallet, toast } = useAppStore()
   const {
     register,
@@ -33,46 +34,48 @@ export default function LoginPage() {
     setError('')
     await authService.login(v.email, v.password)
     if (v.password.toLowerCase() === 'wrongpass') {
-      setError('Invalid email or password (demo error state).')
+      setError('Invalid cryptographic credentials (demo error simulation).')
       return
     }
     login()
-    toast('Signed in (demo session)')
-    navigate('/dashboard')
+    toast('Session authenticated')
+    router.push('/dashboard')
   }
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to your Stealth Pay account."
+      title="Welcome Back"
+      subtitle="Sign in to your Stealth Pay vault"
       footer={
         <>
-          New here?{' '}
-          <Link to="/register" className="font-medium text-ink underline">
-            Create an account
+          Don&apos;t have an identity registered?{' '}
+          <Link href="/register" className="font-mono font-semibold text-primary hover:text-primary-hover hover:underline">
+            Register identity
           </Link>
         </>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {error && (
-          <div role="alert" className="rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger">
+          <div role="alert" className="rounded-control border border-state-error/30 bg-state-error/10 px-4 py-3 font-mono text-xs text-state-error">
             {error}
           </div>
         )}
-        <Field label="Email" error={errors.email?.message}>
+
+        <Field label="Email Address" error={errors.email?.message}>
           <Input
             type="email"
-            placeholder="you@example.com"
+            placeholder="operator@stealthpay.io"
             autoComplete="email"
             {...register('email')}
           />
         </Field>
+
         <Field label="Password" error={errors.password?.message}>
           <div className="relative">
             <Input
               type={show ? 'text' : 'password'}
-              placeholder="••••••••"
+              placeholder="••••••••••••"
               autoComplete="current-password"
               className="pr-11"
               {...register('password')}
@@ -81,45 +84,51 @@ export default function LoginPage() {
               type="button"
               onClick={() => setShow(!show)}
               aria-label={show ? 'Hide password' : 'Show password'}
-              className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-ink-soft"
+              className="absolute top-1/2 right-3.5 -translate-y-1/2 cursor-pointer text-muted hover:text-foreground transition-colors"
             >
               {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
         </Field>
-        <div className="flex items-center justify-between text-sm">
-          <label className="flex cursor-pointer items-center gap-2">
-            <input type="checkbox" className="size-4 accent-[#8fa688]" {...register('remember')} />
-            Remember me
+
+        <div className="flex items-center justify-between text-xs pt-1">
+          <label className="flex cursor-pointer items-center gap-2 text-foreground-secondary font-sans">
+            <input
+              type="checkbox"
+              className="size-4 rounded-control border-border bg-surface text-primary focus:ring-primary accent-primary"
+              {...register('remember')}
+            />
+            Remember session
           </label>
-          <Link to="/forgot-password" className="text-ink-soft underline">
+          <Link href="/forgot-password" className="font-mono text-xs text-muted hover:text-foreground hover:underline">
             Forgot password?
           </Link>
         </div>
-        <Button type="submit" className="w-full" loading={isSubmitting}>
-          Log in
+
+        <Button type="submit" className="w-full mt-2 h-10 font-medium text-xs" loading={isSubmitting}>
+          Sign In
         </Button>
-        <div className="flex items-center gap-3 text-xs text-ink-soft">
-          <span className="h-px flex-1 bg-line" />
-          or
-          <span className="h-px flex-1 bg-line" />
+
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="w-full border-t border-border" />
+          <span className="absolute bg-surface px-3 font-mono text-[10px] text-muted uppercase tracking-wider">
+            Or authenticate with
+          </span>
         </div>
+
         <Button
           type="button"
           variant="secondary"
-          className="w-full"
+          className="w-full h-10 text-xs font-mono"
           onClick={() => {
             connectWallet('MetaMask')
             login()
-            toast('Demo wallet connected', 'info')
-            navigate('/dashboard')
+            toast('Connected MetaMask & Authenticated')
+            router.push('/dashboard')
           }}
         >
-          <Wallet className="size-4" /> Connect wallet
+          <Wallet className="size-3.5 text-primary" /> Connect Web3 Wallet
         </Button>
-        <p className="text-center text-xs text-ink-soft">
-          Demo tip: use password "wrongpass" to preview the error state.
-        </p>
       </form>
     </AuthLayout>
   )

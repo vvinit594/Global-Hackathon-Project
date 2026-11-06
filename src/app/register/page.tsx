@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,7 +22,7 @@ const schema = z
       .regex(/[0-9]/, 'Include at least one number'),
     confirm: z.string(),
     terms: z.literal(true, {
-      errorMap: () => ({ message: 'You must accept the terms' }),
+      errorMap: () => ({ message: 'You must agree to the Terms of Service' }),
     }),
   })
   .refine((d) => d.password === d.confirm, {
@@ -32,7 +33,8 @@ type Values = z.infer<typeof schema>
 
 export default function RegisterPage() {
   const [show, setShow] = useState(false)
-  const navigate = useNavigate()
+  const [showConfirm, setShowConfirm] = useState(false)
+  const router = useRouter()
   const { login, updateSettings, toast } = useAppStore()
   const {
     register,
@@ -44,72 +46,100 @@ export default function RegisterPage() {
     await authService.register(v.name, v.email, v.password)
     updateSettings({ name: v.name, email: v.email })
     login()
-    toast('Account created (demo)')
-    navigate('/dashboard')
+    toast('Cryptographic vault provisioned')
+    router.push('/dashboard')
   }
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Start receiving payments privately."
+      title="Create Account"
+      subtitle="Register an identity and provision a stealth meta-vault"
       footer={
         <>
           Already registered?{' '}
-          <Link to="/login" className="font-medium text-ink underline">
-            Log in
+          <Link href="/login" className="font-mono font-semibold text-primary hover:text-primary-hover hover:underline">
+            Sign in
           </Link>
         </>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <Field label="Full name" error={errors.name?.message}>
-          <Input placeholder="Amara Okafor" {...register('name')} />
+        <Field label="Full Name" error={errors.name?.message}>
+          <Input
+            placeholder="Subham Tiwari"
+            autoComplete="name"
+            {...register('name')}
+          />
         </Field>
-        <Field label="Email" error={errors.email?.message}>
-          <Input type="email" placeholder="you@example.com" {...register('email')} />
+
+        <Field label="Email Address" error={errors.email?.message}>
+          <Input
+            type="email"
+            placeholder="operator@stealthpay.io"
+            autoComplete="email"
+            {...register('email')}
+          />
         </Field>
-        <Field label="Password" error={errors.password?.message}>
+
+        <Field label="Master Password" error={errors.password?.message}>
           <div className="relative">
             <Input
               type={show ? 'text' : 'password'}
+              placeholder="••••••••••••"
+              autoComplete="new-password"
               className="pr-11"
-              placeholder="••••••••"
               {...register('password')}
             />
             <button
               type="button"
               onClick={() => setShow(!show)}
-              aria-label="Toggle password visibility"
-              className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-ink-soft"
+              aria-label={show ? 'Hide password' : 'Show password'}
+              className="absolute top-1/2 right-3.5 -translate-y-1/2 cursor-pointer text-muted hover:text-foreground transition-colors"
             >
               {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
         </Field>
-        <Field label="Confirm password" error={errors.confirm?.message}>
-          <Input
-            type={show ? 'text' : 'password'}
-            placeholder="••••••••"
-            {...register('confirm')}
-          />
+
+        <Field label="Confirm Master Password" error={errors.confirm?.message}>
+          <div className="relative">
+            <Input
+              type={showConfirm ? 'text' : 'password'}
+              placeholder="••••••••••••"
+              autoComplete="new-password"
+              className="pr-11"
+              {...register('confirm')}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirm(!showConfirm)}
+              aria-label={showConfirm ? 'Hide password' : 'Show password'}
+              className="absolute top-1/2 right-3.5 -translate-y-1/2 cursor-pointer text-muted hover:text-foreground transition-colors"
+            >
+              {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
         </Field>
-        <div>
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
+
+        <div className="pt-1">
+          <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-secondary">
             <input
               type="checkbox"
-              className="mt-0.5 size-4 accent-[#8fa688]"
+              className="mt-0.5 size-4 rounded-control border-border bg-surface text-primary focus:ring-primary accent-primary"
               {...register('terms')}
             />
-            <span>I agree to the Terms and Conditions and Privacy Policy.</span>
+            <span className="font-sans leading-relaxed">
+              I agree to the <span className="text-primary hover:underline">Terms of Service</span> and{' '}
+              <span className="text-primary hover:underline">Cryptographic Disclosure</span>
+            </span>
           </label>
           {errors.terms && (
-            <p role="alert" className="mt-1.5 text-xs text-danger">
-              {errors.terms.message}
-            </p>
+            <p className="mt-1 font-mono text-xs text-state-error">{errors.terms.message}</p>
           )}
         </div>
-        <Button type="submit" className="w-full" loading={isSubmitting}>
-          Create account
+
+        <Button type="submit" className="w-full mt-2 h-10 font-medium text-xs" loading={isSubmitting}>
+          Provision Account
         </Button>
       </form>
     </AuthLayout>

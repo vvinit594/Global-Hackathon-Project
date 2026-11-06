@@ -1,10 +1,21 @@
 import { create } from 'zustand'
-import type { AppNotification, Settings, StealthIdentity, Transaction, WalletState, OneTimeStealthAddressRecord, StealthPaymentStatus } from '@/types'
+import type {
+  AppNotification,
+  Settings,
+  StealthIdentity,
+  Transaction,
+  WalletState,
+  OneTimeStealthAddressRecord,
+  StealthPaymentStatus,
+  ThemeMode,
+} from '@/types'
 import { mockTransactions } from '@/data/mock-transactions'
 import { mockNotifications } from '@/data/mock-notifications'
 import { demoWallet } from '@/data/mock-wallet'
 import { MOCK_STEALTH_RECORDS } from '@/data/mock-stealth-records'
 import { deriveOneTimeStealthAddress } from '@/utils/stealth'
+
+let toastId = 0
 
 interface Toast {
   id: number
@@ -48,12 +59,43 @@ interface AppState {
   simulateIncomingStealthPayment: (customAmount?: number) => OneTimeStealthAddressRecord
 }
 
-let toastId = 0
+export function applyTheme(mode: ThemeMode) {
+  if (typeof document === 'undefined') return
+  const isDark =
+    mode === 'dark' ||
+    (mode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.classList.toggle('dark', isDark)
+  document.documentElement.setAttribute('data-theme', mode)
+}
+
+function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'system'
+  try {
+    const stored = localStorage.getItem('stealthpay-theme') as ThemeMode | null
+    return stored || 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+if (typeof window !== 'undefined') {
+  try {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)')
+    mql.addEventListener('change', () => {
+      const curTheme = (localStorage.getItem('stealthpay-theme') as ThemeMode) || 'system'
+      if (curTheme === 'system') {
+        applyTheme('system')
+      }
+    })
+  } catch {}
+}
 
 const INITIAL_DEMO_IDENTITY: StealthIdentity = {
   metaAddress: 'st:eth:0x028c9fe47b9938dcb90184bba01948bc891048bce910283749bcf819028374900a',
   spendingKey: '0x02e48bce9019283749bcf8190283749bcf910283749bdf8192837491029384910a',
   viewingKey: '0x03d7c54b2990f11ac891029384918293849102938491293849102938491029384b',
+  spendingPrivateKey: '0x5a18c992019482701bcf91048bca610398418bdc60912cb84918efbb08291f0a',
+  viewingPrivateKey: '0x1c8418bdc60912cb84918efbb08291f05a18c992019482701bcf91048bca6103',
   createdAt: '2026-11-01T12:00:00Z',
 }
 
@@ -77,9 +119,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   deleteNotification: (id) =>
     set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) })),
   settings: {
-    name: 'Amara Okafor',
-    email: 'amara@example.com',
-    theme: 'light',
+    name: 'Subham Tiwari',
+    email: 'subham@stealthpay.io',
+    theme: getInitialTheme(),
     currency: 'USD',
     twoFactor: false,
     notifyIncoming: true,
@@ -89,8 +131,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   updateSettings: (s) => {
     set((st) => ({ settings: { ...st.settings, ...s } }))
-    if (s.theme && typeof document !== 'undefined') {
-      document.documentElement.classList.toggle('dark', s.theme === 'dark')
+    if (s.theme) {
+      try {
+        localStorage.setItem('stealthpay-theme', s.theme)
+      } catch {}
+      applyTheme(s.theme)
     }
   },
   toasts: [],
