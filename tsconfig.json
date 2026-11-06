@@ -8,6 +8,8 @@
     "jsx": "preserve",
     "allowJs": true,
     "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
     "ignoreDeprecations": "5.0",
     "baseUrl": ".",
     "types": ["node", "vitest/globals"],

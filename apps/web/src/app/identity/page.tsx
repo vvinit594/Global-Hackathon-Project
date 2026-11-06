@@ -1,7 +1,19 @@
 "use client"
 
 import { useState } from 'react'
-import { Fingerprint, RefreshCw, ShieldCheck, KeyRound, Eye, Lock } from 'lucide-react'
+import {
+  Fingerprint,
+  RefreshCw,
+  ShieldCheck,
+  KeyRound,
+  Eye,
+  Lock,
+  Database,
+  Globe,
+  CheckCircle,
+  ExternalLink,
+  UploadCloud,
+} from 'lucide-react'
 import { Badge, Button, Card } from '@/components/ui'
 import { CopyButton, DemoNotice, PageHeader, QRPreview } from '@/components/common'
 import { AppShell } from '@/components/layout/app-shell'
@@ -41,13 +53,44 @@ function StatusBadge({ status }: { status: StealthPaymentStatus }) {
 export default function IdentityPage() {
   const { identity, setIdentity, stealthRecords, toast } = useAppStore()
   const [loading, setLoading] = useState(false)
+  const [arkivPublishing, setArkivPublishing] = useState(false)
+  const [arkivEntityId, setArkivEntityId] = useState<string | null>(null)
 
   const generate = async () => {
     setLoading(true)
     await identityService.generate()
     setIdentity(generateDemoIdentity())
+    setArkivEntityId(null)
     setLoading(false)
-    toast('Demo stealth identity generated')
+    toast('Fresh cryptographic stealth identity generated')
+  }
+
+  const publishToArkiv = async () => {
+    if (!identity) return
+    setArkivPublishing(true)
+    try {
+      const res = await fetch('/api/v1/arkiv/directory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'Stealth Pay User',
+          stealthMetaAddress: identity.metaAddress,
+          category: 'Receiver',
+          description: 'ERC-5564 Privacy Identity published to Arkiv Network',
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        setArkivEntityId(json.data.entityId)
+        toast('Identity registered on Arkiv Decentralized Network!', 'success')
+      } else {
+        toast('Failed to publish to Arkiv Network', 'error')
+      }
+    } catch (err) {
+      toast('Network error publishing to Arkiv', 'error')
+    } finally {
+      setArkivPublishing(false)
+    }
   }
 
   if (!identity) {
@@ -64,7 +107,7 @@ export default function IdentityPage() {
             </span>
             <h2 className="mt-5 text-xl font-semibold text-ink">Generate your stealth identity</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm text-ink-soft">
-              Creates a permanent meta-address with a public spending key and a public viewing key (EIP-5564 standard).
+              Creates a permanent meta-address with a public spending key and a public viewing key (ERC-5564 standard).
             </p>
             <Button size="lg" className="mt-6" loading={loading} onClick={generate}>
               {loading ? 'Generating…' : 'Generate identity'}
@@ -95,7 +138,7 @@ export default function IdentityPage() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h2 className="font-semibold text-ink">Identity status</h2>
-                  <p className="text-xs text-ink-soft">Permanent Reusable Meta-Address</p>
+                  <p className="text-xs text-ink-soft">Permanent Reusable Meta-Address (ERC-5564: Ps + Pv)</p>
                 </div>
                 <Badge tone="success">Active</Badge>
               </div>
@@ -109,16 +152,78 @@ export default function IdentityPage() {
                 icon={<Fingerprint className="size-4 text-sage-deep" />}
               />
               <KeyRow
-                label="Public Spending Key (K_spend)"
+                label="Public Spending Key (Ps - 33 bytes compressed)"
                 value={identity.spendingKey}
                 icon={<Lock className="size-4 text-amber-700" />}
               />
               <KeyRow
-                label="Public Viewing Key (K_view)"
+                label="Public Viewing Key (Pv - 33 bytes compressed)"
                 value={identity.viewingKey}
                 icon={<Eye className="size-4 text-sage-deep" />}
               />
             </Card>
+
+            {/* Arkiv Network Decentralized Identity Section */}
+            <Card className="p-6 border-purple-200 bg-purple-50/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Database className="size-5 text-purple-600" />
+                  <h2 className="font-semibold text-ink">Arkiv Network Decentralized Registry</h2>
+                </div>
+                {arkivEntityId ? (
+                  <Badge tone="success">Published to Arkiv</Badge>
+                ) : (
+                  <Badge tone="neutral">Unregistered</Badge>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-ink-soft">
+                Publish your permanent stealth meta-address to Arkiv decentralized storage so senders can query your identity without relying on centralized servers.
+              </p>
+
+              {arkivEntityId ? (
+                <div className="mt-4 rounded-xl bg-canvas p-3 border border-purple-200">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-purple-900">Arkiv Entity ID:</span>
+                    <CopyButton text={arkivEntityId} />
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-ink break-all">{arkivEntityId}</p>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <Button
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    loading={arkivPublishing}
+                    onClick={publishToArkiv}
+                  >
+                    <UploadCloud className="size-4 mr-1.5" />
+                    Publish to Arkiv Registry
+                  </Button>
+                </div>
+              )}
+            </Card>
+
+            {/* ENS Domain Link Helper */}
+            <Card className="p-6 border-blue-200 bg-blue-50/20">
+              <div className="flex items-center gap-2">
+                <Globe className="size-5 text-blue-600" />
+                <h2 className="font-semibold text-ink">Link to Ethereum Name Service (ENS)</h2>
+              </div>
+              <p className="mt-1 text-xs text-ink-soft">
+                Enable senders to pay you using your human-readable .eth domain name. Add this text record in the official ENS manager:
+              </p>
+              <div className="mt-3 rounded-xl bg-canvas p-3.5 border border-line space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-ink-soft font-semibold">Key:</span>
+                  <span className="text-ink font-bold">stealth-meta-address</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-ink-soft font-semibold">Value:</span>
+                  <span className="text-ink break-all text-[11px]">{identity.metaAddress}</span>
+                </div>
+              </div>
+            </Card>
+
             <DemoNotice />
           </div>
 
@@ -126,7 +231,7 @@ export default function IdentityPage() {
             <h2 className="mb-4 text-center font-semibold text-ink">Identity QR Code</h2>
             <QRPreview value={identity.metaAddress} name="stealth-identity-qr" />
             <p className="mt-3 text-center text-xs text-ink-soft">
-              Scannable by senders to derive unique stealth addresses.
+              Scannable by senders to derive unique one-time stealth addresses on Whitechain and Sepolia.
             </p>
           </Card>
         </div>

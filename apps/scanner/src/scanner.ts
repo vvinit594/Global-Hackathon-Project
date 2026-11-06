@@ -7,115 +7,121 @@ import {
 import { scanTransaction } from '@stealth/crypto';
 import { getWalletTransfers } from '@stealth/bitgo-client';
 
-const CHAIN_ID = parseInt(process.env['CHAIN_ID'] ?? '11155111', 10);
+const SUPPORTED_CHAINS = [
+  parseInt(process.env['CHAIN_ID'] ?? '2625', 10), // Whitechain Testnet (Chain ID 2625)
+  11155111, // Sepolia Testnet
+];
 const SCANNER_ID = process.env['SCANNER_ID'] ?? 'default';
 
 /**
- * Ethereum ERC-5564 Scanner Cycle
- * Reads scanner_checkpoints, checks for submitted payments and on-chain confirmations,
+ * ERC-5564 Scanner Cycle
+ * Reads scanner_checkpoints across supported EVM chains (Whitechain & Sepolia),
+ * checks for submitted payments and on-chain confirmations,
  * updates payment lifecycle, and dispatches notifications.
  */
 export async function runEthereumScanCycle(): Promise<void> {
   const supabase = getSupabaseAdmin();
-  console.log(`[scanner:eth] Starting scan cycle for chain ${CHAIN_ID}...`);
 
-  try {
-    // 1. Fetch or initialize scanner checkpoint
-    const { data: checkpoint } = await supabase
-      .from('scanner_checkpoints')
-      .select('*')
-      .eq('scanner_id', SCANNER_ID)
-      .eq('chain_id', CHAIN_ID)
-      .maybeSingle();
+  for (const chainId of SUPPORTED_CHAINS) {
+    console.log(`[scanner:eth] Starting scan cycle for chain ${chainId}...`);
 
-    const lastBlock = (checkpoint as { last_processed_block?: number } | null)?.last_processed_block ?? 0;
+    try {
+      // 1. Fetch or initialize scanner checkpoint
+      const { data: checkpoint } = await supabase
+        .from('scanner_checkpoints')
+        .select('*')
+        .eq('scanner_id', SCANNER_ID)
+        .eq('chain_id', chainId)
+        .maybeSingle();
 
-    // 2. Query submitted payments that need verification
-    const { data: submittedPayments, error: paymentErr } = await supabase
-      .from('payments')
-      .select('id, tx_hash, stealth_address, receiver_identity_id, amount, token_symbol, status')
-      .eq('chain_id', CHAIN_ID)
-      .eq('status', 'submitted')
-      .limit(50);
+      const lastBlock = (checkpoint as { last_processed_block?: number } | null)?.last_processed_block ?? 0;
 
-    if (paymentErr) {
-      console.error('[scanner:eth] Error querying submitted payments:', paymentErr);
-      return;
-    }
+      // 2. Query submitted payments that need verification
+      const { data: submittedPayments, error: paymentErr } = await supabase
+        .from('payments')
+        .select('id, tx_hash, stealth_address, receiver_identity_id, amount, token_symbol, status')
+        .eq('chain_id', chainId)
+        .eq('status', 'submitted')
+        .limit(50);
 
-    if (!submittedPayments || submittedPayments.length === 0) {
-      console.log('[scanner:eth] No pending submitted payments to scan.');
-    } else {
-      console.log(`[scanner:eth] Processing ${submittedPayments.length} pending payments...`);
+      if (paymentErr) {
+        console.error(`[scanner:eth] Error querying submitted payments on chain ${chainId}:`, paymentErr);
+        continue;
+      }
 
-      for (const p of submittedPayments) {
-        if (!p.tx_hash) continue;
+      if (!submittedPayments || submittedPayments.length === 0) {
+        console.log(`[scanner:eth] No pending submitted payments to scan on chain ${chainId}.`);
+      } else {
+        console.log(`[scanner:eth] Processing ${submittedPayments.length} pending payments on chain ${chainId}...`);
 
-        // In production: verify tx receipt via RPC (e.g. eth_getTransactionReceipt)
-        // Check confirmations and update payment record
-        const confirmedAt = new Date().toISOString();
-        const { error: updateErr } = await supabase
-          .from('payments')
-          .update({
-            status: 'confirmed',
-            confirmed_at: confirmedAt,
-          })
-          .eq('id', p.id);
+        for (const p of submittedPayments) {
+          if (!p.tx_hash) continue;
 
-        if (!updateErr) {
-          console.log(`[scanner:eth] Payment ${p.id} confirmed on-chain (tx: ${p.tx_hash})`);
+          // In production: verify tx receipt via RPC (e.g. eth_getTransactionReceipt)
+          const confirmedAt = new Date().toISOString();
+          const { error: updateErr } = await supabase
+            .from('payments')
+            .update({
+              status: 'confirmed',
+              confirmed_at: confirmedAt,
+            })
+            .eq('id', p.id);
 
-          // Fetch receiver user id
-          const { data: identity } = await supabase
-            .from('stealth_identities')
-            .select('user_id')
-            .eq('id', p.receiver_identity_id)
-            .maybeSingle();
+          if (!updateErr) {
+            console.log(`[scanner:eth] Payment ${p.id} confirmed on-chain (tx: ${p.tx_hash})`);
 
-          if (identity?.user_id) {
-            await supabase.from('notifications').insert({
-              user_id: identity.user_id,
-              type: 'payment_confirmed',
-              title: 'Stealth Payment Confirmed',
-              message: `Payment of ${p.amount} ${p.token_symbol} has been confirmed.`,
-              is_read: false,
-              metadata: { paymentId: p.id, txHash: p.tx_hash, amount: p.amount },
-            });
+            // Fetch receiver user id
+            const { data: identity } = await supabase
+              .from('stealth_identities')
+              .select('user_id')
+              .eq('id', p.receiver_identity_id)
+              .maybeSingle();
+
+            if (identity?.user_id) {
+              await supabase.from('notifications').insert({
+                user_id: identity.user_id,
+                type: 'payment_confirmed',
+                title: 'Stealth Payment Confirmed',
+                message: `Payment of ${p.amount} ${p.token_symbol} has been confirmed.`,
+                is_read: false,
+                metadata: { paymentId: p.id, txHash: p.tx_hash, amount: p.amount },
+              });
+            }
           }
         }
       }
-    }
 
-    // 3. Update scanner checkpoint
-    await supabase
-      .from('scanner_checkpoints')
-      .upsert({
-        scanner_id: SCANNER_ID,
-        chain_id: CHAIN_ID,
-        last_processed_block: lastBlock + 1,
-        is_healthy: true,
-        error_message: null,
-        updated_at: new Date().toISOString(),
-      });
-
-    console.log('[scanner:eth] Scan cycle completed successfully.');
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error('[scanner:eth] Error during scan cycle:', errorMsg);
-
-    try {
+      // 3. Update scanner checkpoint
       await supabase
         .from('scanner_checkpoints')
         .upsert({
           scanner_id: SCANNER_ID,
-          chain_id: CHAIN_ID,
-          last_processed_block: 0,
-          is_healthy: false,
-          error_message: errorMsg,
+          chain_id: chainId,
+          last_processed_block: lastBlock + 1,
+          is_healthy: true,
+          error_message: null,
           updated_at: new Date().toISOString(),
         });
-    } catch {
-      // Ignore secondary checkpoint logging failures
+
+      console.log(`[scanner:eth] Scan cycle for chain ${chainId} completed successfully.`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[scanner:eth] Error during scan cycle for chain ${chainId}:`, errorMsg);
+
+      try {
+        await supabase
+          .from('scanner_checkpoints')
+          .upsert({
+            scanner_id: SCANNER_ID,
+            chain_id: chainId,
+            last_processed_block: 0,
+            is_healthy: false,
+            error_message: errorMsg,
+            updated_at: new Date().toISOString(),
+          });
+      } catch {
+        // Ignore secondary checkpoint logging failures
+      }
     }
   }
 }

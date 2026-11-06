@@ -16,6 +16,8 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       'react-router-dom': path.resolve(__dirname, 'src/utils/router-shim.tsx'),
+      'mppx/client': false,
+      mppx: false,
     };
     if (isServer) {
       const prev = Array.isArray(config.externals) ? config.externals : [config.externals].filter(Boolean);

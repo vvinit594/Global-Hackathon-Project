@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { Badge, Button, Card } from '@/components/ui'
 import { PageHeader, DemoNotice, CopyButton } from '@/components/common'
-import { ActivityChart, QuickAction, StatCard } from '@/components/dashboard'
+import { ActivityChart, QuickAction, StatCard, EcosystemHub } from '@/components/dashboard'
 import { StatusBadge, TxDetailsModal, TxIcon } from '@/components/transactions'
 import { AppShell } from '@/components/layout/app-shell'
 import { useAppStore } from '@/store/app-store'
@@ -271,6 +271,9 @@ export default function DashboardPage() {
             </table>
           </div>
         </Card>
+
+        {/* Protocol & Partner Integrations Hub */}
+        <EcosystemHub />
 
         {/* Recent Transactions List */}
         <Card className="p-6">

@@ -1,45 +1,80 @@
 "use client"
 
-import { Link2, LogOut, Wallet as WalletIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Link2, LogOut, Wallet as WalletIcon, ShieldCheck, CheckCircle2, Globe, ArrowRightLeft } from 'lucide-react'
 import { Badge, Button, Card, Field, Select } from '@/components/ui'
 import { CopyButton, PageHeader, DemoNotice } from '@/components/common'
 import { AppShell } from '@/components/layout/app-shell'
 import { networks, usdRates } from '@/data/mock-wallet'
 import { useAppStore } from '@/store/app-store'
-import { fmtUsd } from '@/utils/format'
+import { fmtUsd, shorten } from '@/utils/format'
+import { useAccount, useConnect, useDisconnect, useBalance, useSwitchChain } from 'wagmi'
 
 export default function WalletPage() {
   const { wallet, connectWallet, disconnectWallet, setNetwork, toast } = useAppStore()
+  const { address, isConnected, chain } = useAccount()
+  const { connect, connectors } = useConnect()
+  const { disconnect } = useDisconnect()
+  const { switchChain } = useSwitchChain()
+  const { data: onChainBalance } = useBalance({ address })
 
-  if (!wallet.connected) {
+  // Handle real Web3 connection
+  const handleConnectInjected = () => {
+    const injectedConnector = connectors.find((c) => c.id === 'injected') || connectors[0]
+    if (injectedConnector) {
+      connect({ connector: injectedConnector })
+      toast('Connecting to browser Web3 wallet...', 'info')
+    } else {
+      toast('No Web3 wallet extension found. Using simulated wallet.', 'info')
+      connectWallet('MetaMask')
+    }
+  }
+
+  const isWalletActive = wallet.connected || isConnected
+  const activeAddress = address || wallet.address
+  const activeProvider = isConnected ? 'MetaMask / Injected' : wallet.provider
+
+  if (!isWalletActive) {
     return (
       <AppShell>
         <div>
-          <PageHeader title="Wallet" description="Connect a wallet to send and receive." />
+          <PageHeader title="Wallet" description="Connect your Web3 wallet to send and receive stealth payments." />
           <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
-            {(
-              [
-                ['MetaMask', 'Browser extension wallet'],
-                ['WalletConnect', 'Scan with a mobile wallet'],
-              ] as const
-            ).map(([n, d]) => (
-              <Card key={n} className="p-6">
-                <span className="grid size-12 place-items-center rounded-2xl bg-beige text-ink">
-                  <WalletIcon className="size-6" />
-                </span>
-                <h2 className="mt-4 font-semibold text-ink">{n}</h2>
-                <p className="text-sm text-ink-soft">{d}</p>
-                <Button
-                  className="mt-5 w-full"
-                  onClick={() => {
-                    connectWallet(n)
-                    toast(`${n} connected (demo)`)
-                  }}
-                >
-                  Connect {n}
-                </Button>
-              </Card>
-            ))}
+            <Card className="p-6">
+              <span className="grid size-12 place-items-center rounded-2xl bg-beige text-ink">
+                <WalletIcon className="size-6 text-amber-700" />
+              </span>
+              <h2 className="mt-4 font-semibold text-ink">Browser Web3 Wallet</h2>
+              <p className="text-sm text-ink-soft">
+                Connect MetaMask, Rabby, Brave, or any EIP-1193 browser extension on Whitechain or Sepolia.
+              </p>
+              <Button
+                className="mt-5 w-full bg-sage-deep hover:bg-sage-dark text-white"
+                onClick={handleConnectInjected}
+              >
+                Connect Browser Wallet
+              </Button>
+            </Card>
+
+            <Card key="demo" className="p-6">
+              <span className="grid size-12 place-items-center rounded-2xl bg-canvas text-ink">
+                <ShieldCheck className="size-6 text-sage-deep" />
+              </span>
+              <h2 className="mt-4 font-semibold text-ink">Simulated Hackathon Wallet</h2>
+              <p className="text-sm text-ink-soft">
+                Pre-funded sandbox wallet for testing stealth transfers without external gas or signatures.
+              </p>
+              <Button
+                variant="secondary"
+                className="mt-5 w-full"
+                onClick={() => {
+                  connectWallet('MetaMask')
+                  toast('Demo sandbox wallet connected', 'success')
+                }}
+              >
+                Connect Demo Wallet
+              </Button>
+            </Card>
           </div>
           <DemoNotice className="mt-4 max-w-3xl" />
         </div>
@@ -57,12 +92,13 @@ export default function WalletPage() {
       <div>
         <PageHeader
           title="Wallet"
-          description="Manage your connected wallet."
+          description="Manage your connected Web3 and privacy account."
           action={
             <Button
               variant="danger"
               size="sm"
               onClick={() => {
+                if (isConnected) disconnect()
                 disconnectWallet()
                 toast('Wallet disconnected', 'info')
               }}
@@ -76,32 +112,55 @@ export default function WalletPage() {
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 font-semibold text-ink">
                 <Link2 className="size-4" />
-                {wallet.provider}
+                {activeProvider}
               </span>
-              <Badge tone="success">Connected</Badge>
+              <Badge tone="success">
+                {isConnected ? 'On-Chain Active' : 'Simulated Active'}
+              </Badge>
             </div>
             <div className="rounded-2xl bg-canvas p-4">
-              <p className="mb-2 text-xs text-ink-soft">Wallet address</p>
-              <p className="font-mono text-xs break-all text-ink">{wallet.address}</p>
+              <p className="mb-2 text-xs text-ink-soft">Connected Address</p>
+              <p className="font-mono text-xs break-all text-ink">{activeAddress}</p>
             </div>
-            <CopyButton text={wallet.address} label="Copy address" />
-            <Field label="Active Network">
+            <CopyButton text={activeAddress} label="Copy address" />
+
+            <Field label="Active Payment Network">
               <Select
                 value={wallet.network}
                 onChange={(e) => {
-                  setNetwork(e.target.value)
-                  toast(`Switched to ${e.target.value}`, 'info')
+                  const targetNet = e.target.value
+                  setNetwork(targetNet)
+                  if (targetNet.includes('Whitechain') && switchChain) {
+                    switchChain({ chainId: 2625 })
+                  } else if (targetNet.includes('Sepolia') && switchChain) {
+                    switchChain({ chainId: 11155111 })
+                  }
+                  toast(`Switched network to ${targetNet}`, 'info')
                 }}
               >
-                {networks.map((n) => (
-                  <option key={n}>{n}</option>
-                ))}
+                <option value="Whitechain Testnet">Whitechain Testnet (Chain ID 2625 - WBT)</option>
+                <option value="Sepolia">Ethereum Sepolia (Chain ID 11155111 - ETH)</option>
+                <option value="Arc Testnet">Arc Testnet (Chain ID 5042 - USDC)</option>
+                <option value="Ethereum">Ethereum Mainnet</option>
               </Select>
             </Field>
+
+            {chain && (
+              <div className="rounded-xl bg-sage-soft p-3 text-xs text-ink flex items-center justify-between">
+                <span>EVM Chain Connected:</span>
+                <span className="font-semibold">{chain.name} ({chain.id})</span>
+              </div>
+            )}
           </Card>
+
           <Card className="p-6">
-            <p className="text-sm text-ink-soft">Total balance (demo)</p>
-            <p className="mt-1 text-3xl font-semibold text-ink">{fmtUsd(total)}</p>
+            <p className="text-sm text-ink-soft">Total Available Balance</p>
+            <p className="mt-1 text-3xl font-semibold text-ink">
+              {onChainBalance
+                ? `${(Number(onChainBalance.value) / 10 ** onChainBalance.decimals).toFixed(4)} ${onChainBalance.symbol}`
+                : fmtUsd(total)}
+            </p>
+
             <ul className="mt-5 divide-y divide-line">
               {Object.entries(wallet.balances).map(([k, v]) => (
                 <li key={k} className="flex justify-between py-3 text-sm">

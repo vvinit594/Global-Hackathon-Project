@@ -96,3 +96,6 @@ export function QuickAction({
     </Link>
   )
 }
+
+export { EcosystemHub } from './ecosystem-hub'
+
